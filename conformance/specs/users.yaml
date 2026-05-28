@@ -1,0 +1,131 @@
+version: "1"
+title: User API Contracts
+description: Conformance fixture for core request and response transforms.
+header: "X-ShapeShifter-Contract"
+
+shapes:
+  CreateUserV1Request:
+    type: object
+    additionalProperties: false
+    required: [name, email]
+    properties:
+      name: { type: string }
+      email: { type: string }
+
+  CreateUserV2Request:
+    type: object
+    additionalProperties: false
+    required: [full_name, contact]
+    properties:
+      full_name: { type: string }
+      contact:
+        type: object
+        additionalProperties: false
+        required: [email]
+        properties:
+          email: { type: string }
+
+  CreateUserInternalRequest:
+    type: object
+    additionalProperties: false
+    required: [name, email]
+    properties:
+      name: { type: string }
+      email: { type: string }
+
+  UserInternalResponse:
+    type: object
+    additionalProperties: false
+    required: [internal_id, name, email]
+    properties:
+      internal_id: { type: string }
+      name: { type: string }
+      email: { type: string }
+
+  UserV1Response:
+    type: object
+    additionalProperties: false
+    required: [id, name, email]
+    properties:
+      id: { type: string }
+      name: { type: string }
+      email: { type: string }
+
+  UserV2Response:
+    type: object
+    additionalProperties: false
+    required: [id, full_name, contact]
+    properties:
+      id: { type: string }
+      full_name: { type: string }
+      contact:
+        type: object
+        additionalProperties: false
+        required: [email]
+        properties:
+          email: { type: string }
+
+endpoints:
+  - path: /users
+    method: POST
+    summary: Create user
+    tags: [users]
+    default_contract: v1
+    contracts:
+      - id: v1
+        request:
+          shape: CreateUserV1Request
+          target_shape: CreateUserInternalRequest
+          transform:
+            passthrough: true
+            validate:
+              - field: ".email"
+                rule: "test(\"^[^@]+@[^@]+$\")"
+                error: "invalid email format"
+        response:
+          source_shape: UserInternalResponse
+          shape: UserV1Response
+          transform:
+            fields:
+              - from: ".internal_id"
+                to: ".id"
+              - from: ".name"
+                to: ".name"
+              - from: ".email"
+                to: ".email"
+
+      - id: v2
+        request:
+          shape: CreateUserV2Request
+          target_shape: CreateUserInternalRequest
+          transform:
+            fields:
+              - from: ".full_name"
+                to: ".name"
+              - from: ".contact.email"
+                to: ".email"
+            validate:
+              - field: ".contact.email"
+                rule: "test(\"^[^@]+@[^@]+$\")"
+                error: "invalid email format"
+        response:
+          source_shape: UserInternalResponse
+          shape: UserV2Response
+          transform:
+            fields:
+              - from: ".internal_id"
+                to: ".id"
+              - from: ".name"
+                to: ".full_name"
+              - from: ".email"
+                to: ".contact.email"
+
+  - path: /nodefault
+    method: POST
+    contracts:
+      - id: v1
+        request:
+          shape: CreateUserV1Request
+          target_shape: CreateUserInternalRequest
+          transform:
+            passthrough: true

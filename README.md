@@ -118,6 +118,12 @@ curl -X POST http://localhost:8080/_shapeshifter/api/process/response \
 
 Preview processing uses `ModePreview`. Handlers registered without `PreviewSafe: true` are skipped and returned in `skipped_handlers`.
 
+Detailed API docs:
+
+- [Spec v1](docs/spec-v1.md)
+- [HTTP APIs](docs/http-api.md)
+- [Error model](docs/error-model.md)
+
 ## Contract Portal
 
 The embedded UI is a static, dependency-free contract portal. It uses the preview API to document loaded contracts, render schema-driven examples, preview both transform directions, compare versions, and manage browser-local fixtures.
@@ -237,6 +243,13 @@ Fiber uses `c.Route().Path`. Mount it in the route handler chain so the matched 
 app.Post("/users/:id", shapeshifterfiber.Middleware(engine), handler)
 ```
 
+Adapter notes:
+
+- [Echo](docs/adapters/echo.md)
+- [Gin](docs/adapters/gin.md)
+- [Chi](docs/adapters/chi.md)
+- [Fiber](docs/adapters/fiber.md)
+
 ## Spec Rules
 
 - `version` is required and must be `"1"`.
@@ -297,7 +310,9 @@ go test -race ./...
 go vet ./...
 ```
 
-The suite covers loader validation, transform semantics, JSON eligibility, request and response limits, real HTTP server behavior, preview processing, observer delivery, adapter behavior, concurrency, and fuzz seeds for paths and number normalization.
+The suite covers loader validation, transform semantics, JSON eligibility, request and response limits, real HTTP server behavior, preview processing, observer delivery, adapter behavior, concurrency, conformance fixtures, and fuzz seeds for paths and number normalization.
+
+The language-neutral conformance fixtures live in [conformance](conformance/). They define shared expected behavior for request/response transforms, selection errors, validation errors, coercion, jq output limits, and preview handler behavior.
 
 ## Current Non-Goals
 

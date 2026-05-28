@@ -1,0 +1,61 @@
+version: "1"
+header: "X-ShapeShifter-Contract"
+
+shapes:
+  HandlerSource:
+    type: object
+    additionalProperties: false
+    required: [name]
+    properties:
+      name: { type: string }
+
+  HandlerTarget:
+    type: object
+    additionalProperties: false
+    required: [name]
+    properties:
+      name: { type: string }
+
+endpoints:
+  - path: /handlers
+    method: POST
+    contracts:
+      - id: safe
+        request:
+          shape: HandlerSource
+          target_shape: HandlerTarget
+          transform:
+            fields:
+              - from: ".name"
+                to: ".name"
+            handler: safeSuffix
+
+      - id: unsafe
+        request:
+          shape: HandlerSource
+          target_shape: HandlerTarget
+          transform:
+            fields:
+              - from: ".name"
+                to: ".name"
+            handler: unsafeName
+
+      - id: validation
+        request:
+          shape: HandlerSource
+          target_shape: HandlerTarget
+          transform:
+            fields:
+              - from: ".name"
+                to: ".name"
+            handler: handlerValidation
+
+      - id: fail
+        request:
+          shape: HandlerSource
+          target_shape: HandlerTarget
+          transform:
+            fields:
+              - from: ".name"
+                to: ".name"
+            handler: handlerFail
