@@ -6,6 +6,14 @@ type Observer interface {
 	OnShapeShifterEvent(Event)
 }
 
+type ObserverFunc func(Event)
+
+func (f ObserverFunc) OnShapeShifterEvent(event Event) {
+	if f != nil {
+		f(event)
+	}
+}
+
 type EventKind string
 
 const (
