@@ -389,6 +389,39 @@ func TestSanitizedSpecMetadata(t *testing.T) {
 	}
 }
 
+func TestObserverFuncReceivesEvents(t *testing.T) {
+	spec, err := LoadSpecBytes([]byte(sampleSpec), NewRegistry().Snapshot())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var events []Event
+	engine, err := NewEngine(spec, WithObserver(ObserverFunc(func(event Event) {
+		events = append(events, event)
+	})))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sel, err := engine.ResolveContract(RouteKey{Method: "POST", Path: "/users"}, "v2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := engine.ProcessRequest(context.Background(), sel, []byte(`{"full_name":"Alice","contact":{"email":"alice@example.com"}}`), ModeRuntime); err != nil {
+		t.Fatal(err)
+	}
+	var selected, transformed bool
+	for _, event := range events {
+		if event.Kind == EventContractSelected {
+			selected = true
+		}
+		if event.Kind == EventRequestTransformed {
+			transformed = true
+		}
+	}
+	if !selected || !transformed {
+		t.Fatalf("events = %#v", events)
+	}
+}
+
 func TestEngineConcurrentUse(t *testing.T) {
 	engine := newTestEngine(t, sampleSpec, nil)
 	sel, err := engine.ResolveContract(RouteKey{Method: "POST", Path: "/users"}, "v2")

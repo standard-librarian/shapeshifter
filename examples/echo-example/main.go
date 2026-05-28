@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/standard-librarian/shapeshifter"
@@ -16,7 +17,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	engine, err := shapeshifter.NewEngine(spec)
+	engine, err := shapeshifter.NewEngine(spec, shapeshifter.WithObserver(loggingObserver{}))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -27,6 +28,37 @@ func main() {
 	e.POST("/users", createUser)
 
 	log.Fatal(e.Start(":8080"))
+}
+
+type loggingObserver struct{}
+
+func (loggingObserver) OnShapeShifterEvent(event shapeshifter.Event) {
+	fields := []any{
+		"kind", event.Kind,
+		"route", event.Route.Method + " " + event.Route.Path,
+	}
+	if event.ContractID != "" {
+		fields = append(fields, "contract", event.ContractID)
+	}
+	if event.Phase != "" {
+		fields = append(fields, "phase", event.Phase)
+	}
+	if event.Stage != "" {
+		fields = append(fields, "stage", event.Stage)
+	}
+	if event.Reason != "" {
+		fields = append(fields, "reason", event.Reason)
+	}
+	if event.Duration > 0 {
+		fields = append(fields, "duration", event.Duration.Round(time.Microsecond))
+	}
+	if event.InBytes > 0 || event.OutBytes > 0 {
+		fields = append(fields, "bytes", map[string]int{"in": event.InBytes, "out": event.OutBytes})
+	}
+	if event.Err != nil {
+		fields = append(fields, "error", event.Err)
+	}
+	log.Println(fields...)
 }
 
 func createUser(c echo.Context) error {
