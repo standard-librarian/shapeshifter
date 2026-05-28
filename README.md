@@ -17,6 +17,7 @@ Current capabilities:
 - Gin adapter
 - Route-scoped Chi adapter
 - Fiber adapter
+- Embedded static UI for previewing request and response transforms
 - No-op-by-default observer hook with a simple `ObserverFunc` helper
 
 ## Install
@@ -117,6 +118,28 @@ curl -X POST http://localhost:8080/_shapeshifter/api/process/response \
 
 Preview processing uses `ModePreview`. Handlers registered without `PreviewSafe: true` are skipped and returned in `skipped_handlers`.
 
+## Embedded UI
+
+The embedded UI is static and opt-in. It uses the preview API, so mount both behind your own auth for non-local environments.
+
+```go
+shapeshifterecho.MountPreviewAPI(e, engine)
+
+uiHandler := http.StripPrefix("/_shapeshifter/ui", ui.Handler())
+e.GET("/_shapeshifter/ui", func(c echo.Context) error {
+    return c.Redirect(http.StatusFound, "/_shapeshifter/ui/")
+})
+e.GET("/_shapeshifter/ui/*", echo.WrapHandler(uiHandler))
+```
+
+Open:
+
+```text
+http://localhost:8080/_shapeshifter/ui/
+```
+
+The UI reads `GET /_shapeshifter/api/spec`, renders request and response input forms from JSON Schemas, runs preview transforms, and surfaces skipped unsafe handlers.
+
 ## Handlers
 
 Handlers run after field mapping and coercion. They may mutate and return the target map.
@@ -201,6 +224,7 @@ app.Post("/users/:id", shapeshifterfiber.Middleware(engine), handler)
 - Target paths support object paths like `.contact.email`.
 - jq programs are trusted spec configuration and are compiled at load time.
 - `gojq.RunWithContext` cancellation is available; default runtime guardrails enforce output-count and emitted-value-size limits.
+- The sanitized preview spec includes JSON Schemas and handler metadata, but not handler functions or compiled internals.
 
 ## HTTP Behavior
 
@@ -252,4 +276,3 @@ The suite covers loader validation, transform semantics, JSON eligibility, reque
 - Independent request-contract and response-contract selectors
 - Arbitrary jq mutation/update programs
 - Response passthrough
-

@@ -2,6 +2,7 @@ package shapeshifter
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -40,9 +41,10 @@ func WithObserver(observer Observer) Option {
 }
 
 type Spec struct {
-	header    string
-	shapes    []string
-	endpoints map[RouteKey]*endpointSpec
+	header       string
+	shapes       []string
+	shapeSchemas map[string]any
+	endpoints    map[RouteKey]*endpointSpec
 }
 
 type endpointSpec struct {
@@ -155,9 +157,10 @@ func compileSpec(raw *rawspec.Spec, handlers HandlerSnapshot) (*Spec, error) {
 	}
 
 	out := &Spec{
-		header:    header,
-		shapes:    sortedShapeNames(raw.Shapes),
-		endpoints: map[RouteKey]*endpointSpec{},
+		header:       header,
+		shapes:       sortedShapeNames(raw.Shapes),
+		shapeSchemas: cloneShapeSchemas(raw.Shapes),
+		endpoints:    map[RouteKey]*endpointSpec{},
 	}
 
 	for _, rawEndpoint := range raw.Endpoints {
@@ -233,10 +236,11 @@ func compileSpec(raw *rawspec.Spec, handlers HandlerSnapshot) (*Spec, error) {
 }
 
 type SanitizedSpec struct {
-	Version   string              `json:"version"`
-	Header    string              `json:"header"`
-	Shapes    []string            `json:"shapes"`
-	Endpoints []SanitizedEndpoint `json:"endpoints"`
+	Version      string              `json:"version"`
+	Header       string              `json:"header"`
+	Shapes       []string            `json:"shapes"`
+	ShapeSchemas map[string]any      `json:"shape_schemas,omitempty"`
+	Endpoints    []SanitizedEndpoint `json:"endpoints"`
 }
 
 type SanitizedEndpoint struct {
@@ -297,9 +301,10 @@ func (s *Spec) Sanitized() SanitizedSpec {
 		return SanitizedSpec{Version: "1"}
 	}
 	out := SanitizedSpec{
-		Version: "1",
-		Header:  s.header,
-		Shapes:  append([]string(nil), s.shapes...),
+		Version:      "1",
+		Header:       s.header,
+		Shapes:       append([]string(nil), s.shapes...),
+		ShapeSchemas: cloneShapeSchemas(s.shapeSchemas),
 	}
 	routes := make([]RouteKey, 0, len(s.endpoints))
 	for route := range s.endpoints {
@@ -636,5 +641,20 @@ func sortedShapeNames(shapes map[string]any) []string {
 		out = append(out, name)
 	}
 	sort.Strings(out)
+	return out
+}
+
+func cloneShapeSchemas(shapes map[string]any) map[string]any {
+	if len(shapes) == 0 {
+		return nil
+	}
+	data, err := json.Marshal(shapes)
+	if err != nil {
+		return nil
+	}
+	var out map[string]any
+	if err := json.Unmarshal(data, &out); err != nil {
+		return nil
+	}
 	return out
 }

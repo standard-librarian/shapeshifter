@@ -368,6 +368,9 @@ func TestSanitizedSpecMetadata(t *testing.T) {
 	if len(sanitized.Shapes) == 0 {
 		t.Fatal("expected shape names")
 	}
+	if sanitized.ShapeSchemas["CreateUserV2Request"] == nil {
+		t.Fatal("expected sanitized shape schemas")
+	}
 	var v2 SanitizedContract
 	for _, endpoint := range sanitized.Endpoints {
 		if endpoint.Route == (RouteKey{Method: "POST", Path: "/users"}) {
