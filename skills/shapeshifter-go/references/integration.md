@@ -1,11 +1,78 @@
+# ShapeShifter Go Integration Reference
+
+## Install
+
+```sh
+go get github.com/standard-librarian/shapeshifter
+```
+
+Import the root package plus the framework adapter:
+
+```go
+import (
+    "github.com/standard-librarian/shapeshifter"
+    shapeshifterecho "github.com/standard-librarian/shapeshifter/adapters/echo"
+)
+```
+
+## Startup Pattern
+
+```go
+registry := shapeshifter.NewRegistry()
+
+// Optional handlers must be registered before Snapshot/LoadSpec.
+_ = registry.Register("normalizeUserInput", func(input map[string]any) (map[string]any, error) {
+    return input, nil
+}, shapeshifter.HandlerOptions{PreviewSafe: true})
+
+spec, err := shapeshifter.LoadSpecFile("shapeshifter.yaml", registry.Snapshot())
+if err != nil {
+    return err
+}
+
+engine, err := shapeshifter.NewEngine(spec, shapeshifter.WithObserver(shapeshifter.ObserverFunc(func(event shapeshifter.Event) {
+    // Connect to slog/metrics/tracing if the app has them.
+})))
+if err != nil {
+    return err
+}
+```
+
+## Adapter Mounting
+
+Echo:
+
+```go
+e := echo.New()
+e.Use(shapeshifterecho.Middleware(engine))
+```
+
+Gin:
+
+```go
+r := gin.New()
+r.Use(shapeshiftergin.Middleware(engine))
+```
+
+Chi is route-scoped:
+
+```go
+r.With(shapeshifterchi.Route(engine, "/users/{id}")).Post("/users/{id}", createUser)
+```
+
+Fiber:
+
+```go
+app.Post("/users/:id", shapeshifterfiber.Middleware(engine), createUser)
+```
+
+## Minimal Spec
+
+```yaml
 version: "1"
 title: User API Contracts
-description: Contract mappings for the Echo user creation example.
+description: Contract mappings for the user service.
 header: "X-ShapeShifter-Contract"
-
-limits:
-  request_body_bytes: 65536
-  response_body_bytes: 1048576
 
 shapes:
   CreateUserV1Request:
@@ -73,36 +140,22 @@ endpoints:
   - path: /users
     method: POST
     summary: Create user
-    description: Creates a user through either the flat v1 public contract or the nested v2 web-app contract.
     tags: [users]
     default_contract: v1
     contracts:
       - id: v1
-        summary: Flat public request
-        description: Original public contract. The request already matches the controller's internal shape.
+        summary: Internal-compatible request
         request:
-          description: External v1 client request body.
           shape: CreateUserV1Request
           target_shape: CreateUserInternalRequest
           examples:
             - name: Basic v1 user
-              description: Minimal valid v1 request.
-              body:
-                name: Alice
-                email: alice@example.com
+              body: { name: Alice, email: alice@example.com }
           transform:
             passthrough: true
         response:
-          description: External v1 client response body.
           source_shape: UserInternalResponse
           shape: UserV1Response
-          examples:
-            - name: Created v1 user
-              description: Successful v1 response.
-              body:
-                id: "123"
-                name: Alice
-                email: alice@example.com
           transform:
             fields:
               - from: ".internal_id"
@@ -114,18 +167,14 @@ endpoints:
 
       - id: v2
         summary: Nested contact request
-        description: Public v2 contract used by browser clients that group contact fields.
         request:
-          description: External v2 client request body.
           shape: CreateUserV2Request
           target_shape: CreateUserInternalRequest
           examples:
             - name: Basic v2 user
-              description: Minimal valid v2 request.
               body:
                 full_name: Alice
-                contact:
-                  email: alice@example.com
+                contact: { email: alice@example.com }
           transform:
             fields:
               - from: ".full_name"
@@ -133,17 +182,14 @@ endpoints:
               - from: ".contact.email"
                 to: ".email"
         response:
-          description: External v2 client response body.
           source_shape: UserInternalResponse
           shape: UserV2Response
           examples:
             - name: Created v2 user
-              description: Successful v2 response.
               body:
                 id: "123"
                 full_name: Alice
-                contact:
-                  email: alice@example.com
+                contact: { email: alice@example.com }
           transform:
             fields:
               - from: ".internal_id"
@@ -152,3 +198,56 @@ endpoints:
                 to: ".full_name"
               - from: ".email"
                 to: ".contact.email"
+```
+
+## Preview API And Portal
+
+Echo preview API:
+
+```go
+shapeshifterecho.MountPreviewAPI(e, engine)
+```
+
+Embedded portal:
+
+```go
+uiHandler := http.StripPrefix(
+    "/_shapeshifter/ui",
+    ui.Handler(
+        ui.WithPreviewAPIBase("/_shapeshifter/api"),
+        ui.WithTryItOut(true),
+        ui.WithTryItOutBase("/"),
+    ),
+)
+e.GET("/_shapeshifter/ui", func(c echo.Context) error {
+    return c.Redirect(http.StatusFound, "/_shapeshifter/ui/")
+})
+e.GET("/_shapeshifter/ui/*", echo.WrapHandler(uiHandler))
+```
+
+Production apps should protect preview/UI routes with their own auth middleware. Try-it-out calls real application handlers and can mutate data.
+
+## Smoke Tests
+
+Use real HTTP tests where possible:
+
+```sh
+curl -X POST http://localhost:8080/users \
+  -H 'Content-Type: application/json' \
+  -H 'X-ShapeShifter-Contract: v2' \
+  -d '{"full_name":"Alice","contact":{"email":"alice@example.com"}}'
+```
+
+Expected v2 response shape:
+
+```json
+{"id":"123","full_name":"Alice","contact":{"email":"alice@example.com"}}
+```
+
+Preview request transform:
+
+```sh
+curl -X POST http://localhost:8080/_shapeshifter/api/process/request \
+  -H 'Content-Type: application/json' \
+  -d '{"route":{"method":"POST","path":"/users"},"contract":"v2","body":{"full_name":"Alice","contact":{"email":"alice@example.com"}}}'
+```

@@ -8,11 +8,13 @@ import (
 )
 
 type Spec struct {
-	Version   string         `yaml:"version"`
-	Header    string         `yaml:"header"`
-	Limits    *Limits        `yaml:"limits"`
-	Shapes    map[string]any `yaml:"shapes"`
-	Endpoints []Endpoint     `yaml:"endpoints"`
+	Version     string         `yaml:"version"`
+	Title       string         `yaml:"title"`
+	Description string         `yaml:"description"`
+	Header      string         `yaml:"header"`
+	Limits      *Limits        `yaml:"limits"`
+	Shapes      map[string]any `yaml:"shapes"`
+	Endpoints   []Endpoint     `yaml:"endpoints"`
 }
 
 type Limits struct {
@@ -23,22 +25,36 @@ type Limits struct {
 type Endpoint struct {
 	Path            string     `yaml:"path"`
 	Method          string     `yaml:"method"`
+	Summary         string     `yaml:"summary"`
+	Description     string     `yaml:"description"`
+	Tags            []string   `yaml:"tags"`
 	DefaultContract string     `yaml:"default_contract"`
 	Limits          *Limits    `yaml:"limits"`
 	Contracts       []Contract `yaml:"contracts"`
 }
 
 type Contract struct {
-	ID       string `yaml:"id"`
-	Request  *Side  `yaml:"request"`
-	Response *Side  `yaml:"response"`
+	ID          string `yaml:"id"`
+	Summary     string `yaml:"summary"`
+	Description string `yaml:"description"`
+	Deprecated  bool   `yaml:"deprecated"`
+	Request     *Side  `yaml:"request"`
+	Response    *Side  `yaml:"response"`
 }
 
 type Side struct {
 	Shape       string    `yaml:"shape"`
 	TargetShape string    `yaml:"target_shape"`
 	SourceShape string    `yaml:"source_shape"`
+	Description string    `yaml:"description"`
+	Examples    []Example `yaml:"examples"`
 	Transform   Transform `yaml:"transform"`
+}
+
+type Example struct {
+	Name        string `yaml:"name"`
+	Description string `yaml:"description"`
+	Body        any    `yaml:"body"`
 }
 
 type Transform struct {
@@ -86,7 +102,35 @@ func Load(r io.Reader) (*Spec, error) {
 		}
 		raw.Shapes[name] = normalized
 	}
+	if err := normalizeExampleBodies(&raw); err != nil {
+		return nil, err
+	}
 	return &raw, nil
+}
+
+func normalizeExampleBodies(raw *Spec) error {
+	for endpointIndex := range raw.Endpoints {
+		for contractIndex := range raw.Endpoints[endpointIndex].Contracts {
+			contract := &raw.Endpoints[endpointIndex].Contracts[contractIndex]
+			for _, side := range []*Side{contract.Request, contract.Response} {
+				if side == nil {
+					continue
+				}
+				for exampleIndex := range side.Examples {
+					body := side.Examples[exampleIndex].Body
+					if body == nil {
+						continue
+					}
+					normalized, err := normalizeYAML(body)
+					if err != nil {
+						return fmt.Errorf("example %q: %w", side.Examples[exampleIndex].Name, err)
+					}
+					side.Examples[exampleIndex].Body = normalized
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func normalizeYAML(v any) (any, error) {

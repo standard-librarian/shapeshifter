@@ -1,0 +1,4 @@
+interface:
+  display_name: "ShapeShifter Go"
+  short_description: "Install and wire ShapeShifter in Go apps"
+  default_prompt: "Use $shapeshifter-go to add ShapeShifter contract middleware to this Go API."

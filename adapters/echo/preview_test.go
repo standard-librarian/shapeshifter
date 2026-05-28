@@ -85,8 +85,11 @@ func TestPreviewAPI(t *testing.T) {
 			t.Fatalf("status = %d", resp.StatusCode)
 		}
 		body, _ := io.ReadAll(resp.Body)
-		if bytes.Contains(body, []byte("additionalProperties")) {
-			t.Fatalf("sanitized spec leaked schema internals: %s", body)
+		if !bytes.Contains(body, []byte(`"shape_schemas"`)) || !bytes.Contains(body, []byte(`"ExternalRequest"`)) {
+			t.Fatalf("sanitized spec missing shape schemas: %s", body)
+		}
+		if bytes.Contains(body, []byte("runtime")) {
+			t.Fatalf("sanitized spec leaked handler function behavior: %s", body)
 		}
 		if !bytes.Contains(body, []byte(`"name":"unsafeRequest"`)) || !bytes.Contains(body, []byte(`"preview_safe":false`)) {
 			t.Fatalf("sanitized spec missing handler metadata: %s", body)

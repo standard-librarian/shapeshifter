@@ -2,6 +2,7 @@ package shapeshifter
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -40,13 +41,19 @@ func WithObserver(observer Observer) Option {
 }
 
 type Spec struct {
-	header    string
-	shapes    []string
-	endpoints map[RouteKey]*endpointSpec
+	header       string
+	title        string
+	description  string
+	shapes       []string
+	shapeSchemas map[string]any
+	endpoints    map[RouteKey]*endpointSpec
 }
 
 type endpointSpec struct {
 	route           RouteKey
+	summary         string
+	description     string
+	tags            []string
 	defaultContract string
 	limits          Limits
 	contracts       map[string]*contractSpec
@@ -54,17 +61,28 @@ type endpointSpec struct {
 }
 
 type contractSpec struct {
-	id       string
-	request  *sideSpec
-	response *sideSpec
+	id          string
+	summary     string
+	description string
+	deprecated  bool
+	request     *sideSpec
+	response    *sideSpec
 }
 
 type sideSpec struct {
 	sourceShape string
 	targetShape string
+	description string
+	examples    []compiledExample
 	source      schemaValidator
 	target      schemaValidator
 	transform   compiledTransform
+}
+
+type compiledExample struct {
+	name        string
+	description string
+	body        any
 }
 
 type schemaValidator interface {
@@ -155,9 +173,12 @@ func compileSpec(raw *rawspec.Spec, handlers HandlerSnapshot) (*Spec, error) {
 	}
 
 	out := &Spec{
-		header:    header,
-		shapes:    sortedShapeNames(raw.Shapes),
-		endpoints: map[RouteKey]*endpointSpec{},
+		header:       header,
+		title:        strings.TrimSpace(raw.Title),
+		description:  strings.TrimSpace(raw.Description),
+		shapes:       sortedShapeNames(raw.Shapes),
+		shapeSchemas: cloneShapeSchemas(raw.Shapes),
+		endpoints:    map[RouteKey]*endpointSpec{},
 	}
 
 	for _, rawEndpoint := range raw.Endpoints {
@@ -181,6 +202,9 @@ func compileSpec(raw *rawspec.Spec, handlers HandlerSnapshot) (*Spec, error) {
 
 		ep := &endpointSpec{
 			route:           route,
+			summary:         strings.TrimSpace(rawEndpoint.Summary),
+			description:     strings.TrimSpace(rawEndpoint.Description),
+			tags:            append([]string(nil), rawEndpoint.Tags...),
 			defaultContract: strings.TrimSpace(rawEndpoint.DefaultContract),
 			limits:          limits,
 			contracts:       map[string]*contractSpec{},
@@ -198,7 +222,12 @@ func compileSpec(raw *rawspec.Spec, handlers HandlerSnapshot) (*Spec, error) {
 				return nil, fmt.Errorf("shapeshifter: contract %q for %s %s must define request or response", id, method, path)
 			}
 
-			contract := &contractSpec{id: id}
+			contract := &contractSpec{
+				id:          id,
+				summary:     strings.TrimSpace(rawContract.Summary),
+				description: strings.TrimSpace(rawContract.Description),
+				deprecated:  rawContract.Deprecated,
+			}
 			if rawContract.Request != nil {
 				side, err := compileRequestSide(id, rawContract.Request, compiledShapes, raw.Shapes, handlers)
 				if err != nil {
@@ -233,14 +262,20 @@ func compileSpec(raw *rawspec.Spec, handlers HandlerSnapshot) (*Spec, error) {
 }
 
 type SanitizedSpec struct {
-	Version   string              `json:"version"`
-	Header    string              `json:"header"`
-	Shapes    []string            `json:"shapes"`
-	Endpoints []SanitizedEndpoint `json:"endpoints"`
+	Version      string              `json:"version"`
+	Title        string              `json:"title,omitempty"`
+	Description  string              `json:"description,omitempty"`
+	Header       string              `json:"header"`
+	Shapes       []string            `json:"shapes"`
+	ShapeSchemas map[string]any      `json:"shape_schemas,omitempty"`
+	Endpoints    []SanitizedEndpoint `json:"endpoints"`
 }
 
 type SanitizedEndpoint struct {
 	Route           RouteKey            `json:"route"`
+	Summary         string              `json:"summary,omitempty"`
+	Description     string              `json:"description,omitempty"`
+	Tags            []string            `json:"tags,omitempty"`
 	DefaultContract string              `json:"default_contract,omitempty"`
 	Limits          Limits              `json:"limits"`
 	Contracts       []SanitizedContract `json:"contracts"`
@@ -248,6 +283,9 @@ type SanitizedEndpoint struct {
 
 type SanitizedContract struct {
 	ID          string         `json:"id"`
+	Summary     string         `json:"summary,omitempty"`
+	Description string         `json:"description,omitempty"`
+	Deprecated  bool           `json:"deprecated,omitempty"`
 	HasRequest  bool           `json:"has_request"`
 	HasResponse bool           `json:"has_response"`
 	Request     *SanitizedSide `json:"request,omitempty"`
@@ -258,7 +296,15 @@ type SanitizedSide struct {
 	Shape       string             `json:"shape,omitempty"`
 	SourceShape string             `json:"source_shape,omitempty"`
 	TargetShape string             `json:"target_shape,omitempty"`
+	Description string             `json:"description,omitempty"`
+	Examples    []SanitizedExample `json:"examples,omitempty"`
 	Transform   SanitizedTransform `json:"transform"`
+}
+
+type SanitizedExample struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Body        any    `json:"body"`
 }
 
 type SanitizedTransform struct {
@@ -297,9 +343,12 @@ func (s *Spec) Sanitized() SanitizedSpec {
 		return SanitizedSpec{Version: "1"}
 	}
 	out := SanitizedSpec{
-		Version: "1",
-		Header:  s.header,
-		Shapes:  append([]string(nil), s.shapes...),
+		Version:      "1",
+		Title:        s.title,
+		Description:  s.description,
+		Header:       s.header,
+		Shapes:       append([]string(nil), s.shapes...),
+		ShapeSchemas: cloneShapeSchemas(s.shapeSchemas),
 	}
 	routes := make([]RouteKey, 0, len(s.endpoints))
 	for route := range s.endpoints {
@@ -315,6 +364,9 @@ func (s *Spec) Sanitized() SanitizedSpec {
 		ep := s.endpoints[route]
 		sanitizedEndpoint := SanitizedEndpoint{
 			Route:           ep.route,
+			Summary:         ep.summary,
+			Description:     ep.description,
+			Tags:            append([]string(nil), ep.tags...),
 			DefaultContract: ep.defaultContract,
 			Limits:          ep.limits,
 		}
@@ -322,6 +374,9 @@ func (s *Spec) Sanitized() SanitizedSpec {
 			contract := ep.contracts[id]
 			sanitizedContract := SanitizedContract{
 				ID:          id,
+				Summary:     contract.summary,
+				Description: contract.description,
+				Deprecated:  contract.deprecated,
 				HasRequest:  contract.request != nil,
 				HasResponse: contract.response != nil,
 			}
@@ -341,13 +396,29 @@ func (s *Spec) Sanitized() SanitizedSpec {
 }
 
 func sanitizeSide(side *sideSpec, phase Phase) SanitizedSide {
-	out := SanitizedSide{Transform: sanitizeTransform(side.transform)}
+	out := SanitizedSide{
+		Description: side.description,
+		Examples:    sanitizeExamples(side.examples),
+		Transform:   sanitizeTransform(side.transform),
+	}
 	if phase == PhaseResponse {
 		out.Shape = side.targetShape
 		out.SourceShape = side.sourceShape
 	} else {
 		out.Shape = side.sourceShape
 		out.TargetShape = side.targetShape
+	}
+	return out
+}
+
+func sanitizeExamples(examples []compiledExample) []SanitizedExample {
+	out := make([]SanitizedExample, 0, len(examples))
+	for _, example := range examples {
+		out = append(out, SanitizedExample{
+			Name:        example.name,
+			Description: example.description,
+			Body:        cloneAny(example.body),
+		})
 	}
 	return out
 }
@@ -424,9 +495,15 @@ func compileRequestSide(_ string, raw *rawspec.Side, shapes map[string]schemaVal
 	if err != nil {
 		return nil, err
 	}
+	examples, err := compileExamples(raw.Examples, source)
+	if err != nil {
+		return nil, err
+	}
 	return &sideSpec{
 		sourceShape: raw.Shape,
 		targetShape: raw.TargetShape,
+		description: strings.TrimSpace(raw.Description),
+		examples:    examples,
 		source:      source,
 		target:      target,
 		transform:   compiled,
@@ -458,13 +535,52 @@ func compileResponseSide(_ string, raw *rawspec.Side, shapes map[string]schemaVa
 	if err != nil {
 		return nil, err
 	}
+	examples, err := compileExamples(raw.Examples, target)
+	if err != nil {
+		return nil, err
+	}
 	return &sideSpec{
 		sourceShape: raw.SourceShape,
 		targetShape: raw.Shape,
+		description: strings.TrimSpace(raw.Description),
+		examples:    examples,
 		source:      source,
 		target:      target,
 		transform:   compiled,
 	}, nil
+}
+
+func compileExamples(rawExamples []rawspec.Example, shape schemaValidator) ([]compiledExample, error) {
+	if len(rawExamples) == 0 {
+		return nil, nil
+	}
+	seen := map[string]struct{}{}
+	out := make([]compiledExample, 0, len(rawExamples))
+	for _, rawExample := range rawExamples {
+		name := strings.TrimSpace(rawExample.Name)
+		if name == "" {
+			return nil, fmt.Errorf("example name is required")
+		}
+		if _, exists := seen[name]; exists {
+			return nil, fmt.Errorf("duplicate example %q", name)
+		}
+		seen[name] = struct{}{}
+		if rawExample.Body == nil {
+			return nil, fmt.Errorf("example %q body is required", name)
+		}
+		body := cloneAny(rawExample.Body)
+		if shape != nil {
+			if err := shape.Validate(body); err != nil {
+				return nil, fmt.Errorf("example %q does not match shape: %w", name, err)
+			}
+		}
+		out = append(out, compiledExample{
+			name:        name,
+			description: strings.TrimSpace(rawExample.Description),
+			body:        body,
+		})
+	}
+	return out, nil
 }
 
 func lookupShape(shapes map[string]schemaValidator, name string) (schemaValidator, error) {
@@ -636,5 +752,35 @@ func sortedShapeNames(shapes map[string]any) []string {
 		out = append(out, name)
 	}
 	sort.Strings(out)
+	return out
+}
+
+func cloneShapeSchemas(shapes map[string]any) map[string]any {
+	if len(shapes) == 0 {
+		return nil
+	}
+	data, err := json.Marshal(shapes)
+	if err != nil {
+		return nil
+	}
+	var out map[string]any
+	if err := json.Unmarshal(data, &out); err != nil {
+		return nil
+	}
+	return out
+}
+
+func cloneAny(value any) any {
+	if value == nil {
+		return nil
+	}
+	data, err := json.Marshal(value)
+	if err != nil {
+		return value
+	}
+	var out any
+	if err := json.Unmarshal(data, &out); err != nil {
+		return value
+	}
 	return out
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/standard-librarian/shapeshifter"
 	shapeshifterecho "github.com/standard-librarian/shapeshifter/adapters/echo"
+	"github.com/standard-librarian/shapeshifter/ui"
 )
 
 func main() {
@@ -25,9 +26,22 @@ func main() {
 	e := echo.New()
 	e.Use(shapeshifterecho.Middleware(engine))
 	shapeshifterecho.MountPreviewAPI(e, engine)
+	mountShapeShifterUI(e)
 	e.POST("/users", createUser)
 
 	log.Fatal(e.Start(":8080"))
+}
+
+func mountShapeShifterUI(e *echo.Echo) {
+	handler := http.StripPrefix("/_shapeshifter/ui", ui.Handler(
+		ui.WithPreviewAPIBase("/_shapeshifter/api"),
+		ui.WithTryItOut(true),
+		ui.WithTryItOutBase("/"),
+	))
+	e.GET("/_shapeshifter/ui", func(c echo.Context) error {
+		return c.Redirect(http.StatusFound, "/_shapeshifter/ui/")
+	})
+	e.GET("/_shapeshifter/ui/*", echo.WrapHandler(handler))
 }
 
 type loggingObserver struct{}
