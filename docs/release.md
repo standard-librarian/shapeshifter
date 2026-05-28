@@ -55,3 +55,19 @@ git push origin v0.1.0
 ```
 
 Do not tag automatically from automation until the release checklist has been run intentionally.
+
+## Current v0.1.0 Readiness
+
+Local status as of the release-prep pass:
+
+- Public API names reviewed and documented in `docs/api-surface.md`.
+- Release candidate notes added in `docs/releases/v0.1.0.md`.
+- CI workflow exists and runs test, race test, and vet.
+- Latest branch CI was checked with `gh run list` and was green before this release-prep commit.
+- Clean-clone verification passed locally: `go test ./...`, `go test -race ./...`, and `go vet ./...`.
+- Echo example smoke passed locally for sanitized spec, preview request, preview response, UI HTML, and real v2 request.
+
+Remaining before tagging:
+
+- Confirm CI is green for the final release-prep commit.
+- Decide explicitly whether to tag `v0.1.0`.
