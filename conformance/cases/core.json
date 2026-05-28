@@ -1,0 +1,225 @@
+[
+  {
+    "name": "missing contract uses default",
+    "spec": "users.yaml",
+    "route": { "method": "POST", "path": "/users" },
+    "phase": "selection",
+    "expect": {
+      "status": "ok",
+      "contract": "v1",
+      "available": ["v1", "v2"],
+      "has_request": true,
+      "has_response": true
+    }
+  },
+  {
+    "name": "missing contract without default fails",
+    "spec": "users.yaml",
+    "route": { "method": "POST", "path": "/nodefault" },
+    "phase": "selection",
+    "expect": {
+      "status": "selection_error",
+      "selection_reason": "missing"
+    }
+  },
+  {
+    "name": "unknown contract fails",
+    "spec": "users.yaml",
+    "route": { "method": "POST", "path": "/users" },
+    "contract": "v9",
+    "phase": "selection",
+    "expect": {
+      "status": "selection_error",
+      "selection_reason": "unknown"
+    }
+  },
+  {
+    "name": "v1 passthrough request",
+    "spec": "users.yaml",
+    "route": { "method": "POST", "path": "/users" },
+    "phase": "request",
+    "mode": "runtime",
+    "input": { "name": "Alice", "email": "alice@example.com" },
+    "expect": {
+      "status": "ok",
+      "payload": { "name": "Alice", "email": "alice@example.com" }
+    }
+  },
+  {
+    "name": "v2 mapped request",
+    "spec": "users.yaml",
+    "route": { "method": "POST", "path": "/users" },
+    "contract": "v2",
+    "phase": "request",
+    "mode": "runtime",
+    "input": { "full_name": "Alice", "contact": { "email": "alice@example.com" } },
+    "expect": {
+      "status": "ok",
+      "payload": { "name": "Alice", "email": "alice@example.com" }
+    }
+  },
+  {
+    "name": "v2 mapped response",
+    "spec": "users.yaml",
+    "route": { "method": "POST", "path": "/users" },
+    "contract": "v2",
+    "phase": "response",
+    "mode": "runtime",
+    "input": { "internal_id": "123", "name": "Alice", "email": "alice@example.com" },
+    "expect": {
+      "status": "ok",
+      "payload": { "id": "123", "full_name": "Alice", "contact": { "email": "alice@example.com" } }
+    }
+  },
+  {
+    "name": "request source schema failure",
+    "spec": "users.yaml",
+    "route": { "method": "POST", "path": "/users" },
+    "contract": "v2",
+    "phase": "request",
+    "mode": "runtime",
+    "input": { "full_name": "Alice", "contact": {} },
+    "expect": {
+      "status": "process_error",
+      "stage": "source_validate",
+      "error_code": "source_schema_failed"
+    }
+  },
+  {
+    "name": "request validation rule failure",
+    "spec": "users.yaml",
+    "route": { "method": "POST", "path": "/users" },
+    "contract": "v2",
+    "phase": "request",
+    "mode": "runtime",
+    "input": { "full_name": "Alice", "contact": { "email": "invalid" } },
+    "expect": {
+      "status": "process_error",
+      "stage": "transform",
+      "error_code": "validation_rule_failed"
+    }
+  },
+  {
+    "name": "response source schema failure",
+    "spec": "users.yaml",
+    "route": { "method": "POST", "path": "/users" },
+    "contract": "v2",
+    "phase": "response",
+    "mode": "runtime",
+    "input": { "internal_id": "123", "name": "Alice" },
+    "expect": {
+      "status": "process_error",
+      "stage": "source_validate",
+      "error_code": "source_schema_failed"
+    }
+  },
+  {
+    "name": "coercion success",
+    "spec": "transforms.yaml",
+    "route": { "method": "POST", "path": "/transforms" },
+    "contract": "coerce",
+    "phase": "request",
+    "mode": "runtime",
+    "input": { "name": "Alice", "age": "42" },
+    "expect": {
+      "status": "ok",
+      "payload": { "name": "Alice", "age": 42 }
+    }
+  },
+  {
+    "name": "coercion failure",
+    "spec": "transforms.yaml",
+    "route": { "method": "POST", "path": "/transforms" },
+    "contract": "coerce",
+    "phase": "request",
+    "mode": "runtime",
+    "input": { "name": "Alice", "age": "nope" },
+    "expect": {
+      "status": "process_error",
+      "stage": "transform",
+      "error_code": "coercion_failed"
+    }
+  },
+  {
+    "name": "multiple jq outputs fail",
+    "spec": "transforms.yaml",
+    "route": { "method": "POST", "path": "/transforms" },
+    "contract": "multi",
+    "phase": "request",
+    "mode": "runtime",
+    "input": { "name": "Alice", "age": "42" },
+    "expect": {
+      "status": "process_error",
+      "stage": "transform",
+      "error_code": "multiple_jq_outputs"
+    }
+  },
+  {
+    "name": "preview safe handler runs",
+    "spec": "handlers.yaml",
+    "route": { "method": "POST", "path": "/handlers" },
+    "contract": "safe",
+    "phase": "request",
+    "mode": "preview",
+    "input": { "name": "Alice" },
+    "expect": {
+      "status": "ok",
+      "payload": { "name": "Alice!" }
+    }
+  },
+  {
+    "name": "preview unsafe handler skips",
+    "spec": "handlers.yaml",
+    "route": { "method": "POST", "path": "/handlers" },
+    "contract": "unsafe",
+    "phase": "request",
+    "mode": "preview",
+    "input": { "name": "Alice" },
+    "expect": {
+      "status": "ok",
+      "payload": { "name": "Alice" },
+      "skipped_handlers": ["unsafeName"]
+    }
+  },
+  {
+    "name": "runtime unsafe handler runs",
+    "spec": "handlers.yaml",
+    "route": { "method": "POST", "path": "/handlers" },
+    "contract": "unsafe",
+    "phase": "request",
+    "mode": "runtime",
+    "input": { "name": "Alice" },
+    "expect": {
+      "status": "ok",
+      "payload": { "name": "runtime" }
+    }
+  },
+  {
+    "name": "handler validation failure",
+    "spec": "handlers.yaml",
+    "route": { "method": "POST", "path": "/handlers" },
+    "contract": "validation",
+    "phase": "request",
+    "mode": "runtime",
+    "input": { "name": "Alice" },
+    "expect": {
+      "status": "process_error",
+      "stage": "handler",
+      "error_code": "handler_validation_failed"
+    }
+  },
+  {
+    "name": "handler system failure",
+    "spec": "handlers.yaml",
+    "route": { "method": "POST", "path": "/handlers" },
+    "contract": "fail",
+    "phase": "request",
+    "mode": "runtime",
+    "input": { "name": "Alice" },
+    "expect": {
+      "status": "process_error",
+      "stage": "handler",
+      "error_code": "handler_failed"
+    }
+  }
+]

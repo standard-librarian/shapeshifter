@@ -1,0 +1,51 @@
+version: "1"
+header: "X-ShapeShifter-Contract"
+
+shapes:
+  CoerceSource:
+    type: object
+    additionalProperties: false
+    required: [name, age]
+    properties:
+      name: { type: string }
+      age: { type: string }
+
+  CoerceTarget:
+    type: object
+    additionalProperties: false
+    required: [name, age]
+    properties:
+      name: { type: string }
+      age: { type: integer }
+
+endpoints:
+  - path: /transforms
+    method: POST
+    contracts:
+      - id: coerce
+        request:
+          shape: CoerceSource
+          target_shape: CoerceTarget
+          transform:
+            fields:
+              - from: ".name"
+                to: ".name"
+              - from: ".age"
+                to: ".age"
+            coerce:
+              - field: ".age"
+                type: integer
+
+      - id: multi
+        request:
+          shape: CoerceSource
+          target_shape: CoerceTarget
+          transform:
+            fields:
+              - from: ".[]"
+                to: ".name"
+              - from: ".age"
+                to: ".age"
+            coerce:
+              - field: ".age"
+                type: integer
