@@ -33,7 +33,11 @@ func main() {
 }
 
 func mountShapeShifterUI(e *echo.Echo) {
-	handler := http.StripPrefix("/_shapeshifter/ui", ui.Handler())
+	handler := http.StripPrefix("/_shapeshifter/ui", ui.Handler(
+		ui.WithPreviewAPIBase("/_shapeshifter/api"),
+		ui.WithTryItOut(true),
+		ui.WithTryItOutBase("/"),
+	))
 	e.GET("/_shapeshifter/ui", func(c echo.Context) error {
 		return c.Redirect(http.StatusFound, "/_shapeshifter/ui/")
 	})

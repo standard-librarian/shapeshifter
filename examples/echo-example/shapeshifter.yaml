@@ -1,4 +1,6 @@
 version: "1"
+title: User API Contracts
+description: Contract mappings for the Echo user creation example.
 header: "X-ShapeShifter-Contract"
 
 limits:
@@ -70,17 +72,37 @@ shapes:
 endpoints:
   - path: /users
     method: POST
+    summary: Create user
+    description: Creates a user through either the flat v1 public contract or the nested v2 web-app contract.
+    tags: [users]
     default_contract: v1
     contracts:
       - id: v1
+        summary: Flat public request
+        description: Original public contract. The request already matches the controller's internal shape.
         request:
+          description: External v1 client request body.
           shape: CreateUserV1Request
           target_shape: CreateUserInternalRequest
+          examples:
+            - name: Basic v1 user
+              description: Minimal valid v1 request.
+              body:
+                name: Alice
+                email: alice@example.com
           transform:
             passthrough: true
         response:
+          description: External v1 client response body.
           source_shape: UserInternalResponse
           shape: UserV1Response
+          examples:
+            - name: Created v1 user
+              description: Successful v1 response.
+              body:
+                id: "123"
+                name: Alice
+                email: alice@example.com
           transform:
             fields:
               - from: ".internal_id"
@@ -91,9 +113,19 @@ endpoints:
                 to: ".email"
 
       - id: v2
+        summary: Nested contact request
+        description: Public v2 contract used by browser clients that group contact fields.
         request:
+          description: External v2 client request body.
           shape: CreateUserV2Request
           target_shape: CreateUserInternalRequest
+          examples:
+            - name: Basic v2 user
+              description: Minimal valid v2 request.
+              body:
+                full_name: Alice
+                contact:
+                  email: alice@example.com
           transform:
             fields:
               - from: ".full_name"
@@ -101,8 +133,17 @@ endpoints:
               - from: ".contact.email"
                 to: ".email"
         response:
+          description: External v2 client response body.
           source_shape: UserInternalResponse
           shape: UserV2Response
+          examples:
+            - name: Created v2 user
+              description: Successful v2 response.
+              body:
+                id: "123"
+                full_name: Alice
+                contact:
+                  email: alice@example.com
           transform:
             fields:
               - from: ".internal_id"
@@ -111,4 +152,3 @@ endpoints:
                 to: ".full_name"
               - from: ".email"
                 to: ".contact.email"
-

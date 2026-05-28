@@ -17,7 +17,7 @@ Current capabilities:
 - Gin adapter
 - Route-scoped Chi adapter
 - Fiber adapter
-- Embedded static UI for previewing request and response transforms
+- Embedded static contract portal for docs, examples, previews, version comparison, and opt-in same-origin try-it-out
 - No-op-by-default observer hook with a simple `ObserverFunc` helper
 
 ## Install
@@ -118,14 +118,21 @@ curl -X POST http://localhost:8080/_shapeshifter/api/process/response \
 
 Preview processing uses `ModePreview`. Handlers registered without `PreviewSafe: true` are skipped and returned in `skipped_handlers`.
 
-## Embedded UI
+## Contract Portal
 
-The embedded UI is static and opt-in. It uses the preview API, so mount both behind your own auth for non-local environments.
+The embedded UI is a static, dependency-free contract portal. It uses the preview API to document loaded contracts, render schema-driven examples, preview both transform directions, compare versions, and manage browser-local fixtures.
 
 ```go
 shapeshifterecho.MountPreviewAPI(e, engine)
 
-uiHandler := http.StripPrefix("/_shapeshifter/ui", ui.Handler())
+uiHandler := http.StripPrefix(
+    "/_shapeshifter/ui",
+    ui.Handler(
+        ui.WithPreviewAPIBase("/_shapeshifter/api"),
+        ui.WithTryItOut(true),
+        ui.WithTryItOutBase("/"),
+    ),
+)
 e.GET("/_shapeshifter/ui", func(c echo.Context) error {
     return c.Redirect(http.StatusFound, "/_shapeshifter/ui/")
 })
@@ -138,7 +145,28 @@ Open:
 http://localhost:8080/_shapeshifter/ui/
 ```
 
-The UI reads `GET /_shapeshifter/api/spec`, renders request and response input forms from JSON Schemas, runs preview transforms, and surfaces skipped unsafe handlers.
+`ui.Handler()` is backwards compatible and accepts options:
+
+- `ui.WithPreviewAPIBase(path)` sets the preview API base. Default: `/_shapeshifter/api`.
+- `ui.WithTryItOut(true)` enables the real request tab. Default: disabled.
+- `ui.WithTryItOutBase(path)` sets the same-origin base path for real execution. Default: `/`.
+
+The handler also serves `GET /config.json`, so a UI mounted at `/_shapeshifter/ui` fetches `/_shapeshifter/ui/config.json`.
+
+The portal is designed for backend and frontend engineers:
+
+- FE can discover endpoints, contract versions, schemas, headers, curated examples, and expected responses.
+- BE can preview `external request -> internal request` and `internal response -> external response`.
+- Both teams can compare two contract versions on one endpoint.
+- Examples saved in the UI use browser `localStorage` under `shapeshifter.examples.v1`; ShapeShifter does not persist them server-side.
+- Try-it-out sends real same-origin HTTP requests only when explicitly enabled and never runs automatically.
+
+Security notes:
+
+- Do not expose preview or UI routes publicly without application-owned auth.
+- Try-it-out can mutate application data because it calls real handlers.
+- Preview mode skips handlers that are not registered with `PreviewSafe: true`; skipped handler names are shown in the response.
+- ShapeShifter does not provide auth middleware for the portal.
 
 ## Handlers
 
@@ -212,6 +240,10 @@ app.Post("/users/:id", shapeshifterfiber.Middleware(engine), handler)
 ## Spec Rules
 
 - `version` is required and must be `"1"`.
+- Optional top-level `title` and `description` are preserved for documentation.
+- Optional endpoint `summary`, `description`, and `tags` are preserved for documentation.
+- Optional contract `summary`, `description`, and `deprecated` are preserved for documentation.
+- Optional request/response examples are validated at load time against their external schemas and exposed through the sanitized spec.
 - `method` is normalized to uppercase.
 - `path` is the adapter-native route pattern.
 - Duplicate `method + path` endpoints are rejected.
