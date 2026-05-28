@@ -1,0 +1,50 @@
+version: "1"
+header: "X-ShapeShifter-Contract"
+
+shapes:
+  NumericSource:
+    type: object
+    additionalProperties: false
+    required: [count, amount]
+    properties:
+      count: { type: integer }
+      amount: { type: number }
+
+  NumericMapped:
+    type: object
+    additionalProperties: false
+    required: [count, amount]
+    properties:
+      count: { type: integer }
+      amount: { type: number }
+
+  NumberTypeSummary:
+    type: object
+    additionalProperties: false
+    required: [count_type, amount_type]
+    properties:
+      count_type: { type: string }
+      amount_type: { type: string }
+
+endpoints:
+  - path: /numbers
+    method: POST
+    contracts:
+      - id: describe
+        request:
+          shape: NumericSource
+          target_shape: NumberTypeSummary
+          transform:
+            fields:
+              - from: ".count"
+                to: ".count"
+              - from: ".amount"
+                to: ".amount"
+            handler: describeNumbers
+
+      - id: passthrough
+        request:
+          shape: NumericSource
+          target_shape: NumericMapped
+          transform:
+            passthrough: true

@@ -123,6 +123,7 @@ Detailed API docs:
 - [Spec v1](docs/spec-v1.md)
 - [HTTP APIs](docs/http-api.md)
 - [Error model](docs/error-model.md)
+- [Release and stability](docs/release.md)
 
 ## Contract Portal
 

@@ -18,6 +18,14 @@ shapes:
       name: { type: string }
       age: { type: integer }
 
+  OptionalTarget:
+    type: object
+    additionalProperties: false
+    required: [name]
+    properties:
+      name: { type: string }
+      nickname: { type: string }
+
 endpoints:
   - path: /transforms
     method: POST
@@ -49,3 +57,29 @@ endpoints:
             coerce:
               - field: ".age"
                 type: integer
+
+      - id: missing
+        request:
+          shape: CoerceSource
+          target_shape: CoerceTarget
+          transform:
+            fields:
+              - from: ".missing"
+                to: ".name"
+              - from: ".age"
+                to: ".age"
+            coerce:
+              - field: ".age"
+                type: integer
+
+      - id: optional
+        request:
+          shape: CoerceSource
+          target_shape: OptionalTarget
+          transform:
+            fields:
+              - from: ".name"
+                to: ".name"
+              - from: ".missing"
+                to: ".nickname"
+                required: false
