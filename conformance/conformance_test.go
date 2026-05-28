@@ -22,6 +22,7 @@ type conformanceCase struct {
 	Phase    shapeshifter.Phase    `json:"phase"`
 	Mode     string                `json:"mode"`
 	Input    json.RawMessage       `json:"input"`
+	InputRaw string                `json:"input_raw"`
 	Expect   expectation           `json:"expect"`
 }
 
@@ -65,7 +66,7 @@ func TestConformanceCases(t *testing.T) {
 				mode = shapeshifter.ModePreview
 			}
 
-			input := bytes.TrimSpace(tc.Input)
+			input := caseInput(t, tc)
 			if len(input) == 0 {
 				t.Fatal("input is required for process cases")
 			}
@@ -96,6 +97,14 @@ func TestConformanceCases(t *testing.T) {
 			}
 		})
 	}
+}
+
+func caseInput(t *testing.T, tc conformanceCase) []byte {
+	t.Helper()
+	if tc.InputRaw != "" {
+		return []byte(tc.InputRaw)
+	}
+	return bytes.TrimSpace(tc.Input)
 }
 
 func loadCases(t *testing.T) []conformanceCase {
@@ -146,6 +155,12 @@ func loadEngine(t *testing.T, specName string) *shapeshifter.Engine {
 	mustRegister(t, registry, "handlerFail", func(input map[string]any) (map[string]any, error) {
 		return nil, errors.New("handler system failure")
 	})
+	mustRegister(t, registry, "describeNumbers", func(input map[string]any) (map[string]any, error) {
+		return map[string]any{
+			"count_type":  typeName(input["count"]),
+			"amount_type": typeName(input["amount"]),
+		}, nil
+	}, shapeshifter.HandlerOptions{PreviewSafe: true})
 
 	spec, err := shapeshifter.LoadSpecFile(filepath.Join("specs", specName), registry.Snapshot())
 	if err != nil {
@@ -156,6 +171,17 @@ func loadEngine(t *testing.T, specName string) *shapeshifter.Engine {
 		t.Fatal(err)
 	}
 	return engine
+}
+
+func typeName(value any) string {
+	switch value.(type) {
+	case int64:
+		return "int64"
+	case float64:
+		return "float64"
+	default:
+		return "other"
+	}
 }
 
 func mustRegister(t *testing.T, registry *shapeshifter.Registry, name string, fn shapeshifter.HandlerFunc, opts ...shapeshifter.HandlerOptions) {

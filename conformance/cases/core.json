@@ -46,6 +46,48 @@
     }
   },
   {
+    "name": "empty request body",
+    "spec": "users.yaml",
+    "route": { "method": "POST", "path": "/users" },
+    "contract": "v2",
+    "phase": "request",
+    "mode": "runtime",
+    "input_raw": " ",
+    "expect": {
+      "status": "process_error",
+      "stage": "decode",
+      "error_code": "empty_request_body"
+    }
+  },
+  {
+    "name": "malformed request body",
+    "spec": "users.yaml",
+    "route": { "method": "POST", "path": "/users" },
+    "contract": "v2",
+    "phase": "request",
+    "mode": "runtime",
+    "input_raw": "{\"full_name\":",
+    "expect": {
+      "status": "process_error",
+      "stage": "decode",
+      "error_code": "malformed_json"
+    }
+  },
+  {
+    "name": "non object request body",
+    "spec": "users.yaml",
+    "route": { "method": "POST", "path": "/users" },
+    "contract": "v2",
+    "phase": "request",
+    "mode": "runtime",
+    "input": ["not", "object"],
+    "expect": {
+      "status": "process_error",
+      "stage": "decode",
+      "error_code": "malformed_json"
+    }
+  },
+  {
     "name": "v2 mapped request",
     "spec": "users.yaml",
     "route": { "method": "POST", "path": "/users" },
@@ -152,6 +194,60 @@
       "status": "process_error",
       "stage": "transform",
       "error_code": "multiple_jq_outputs"
+    }
+  },
+  {
+    "name": "missing required mapping fails",
+    "spec": "transforms.yaml",
+    "route": { "method": "POST", "path": "/transforms" },
+    "contract": "missing",
+    "phase": "request",
+    "mode": "runtime",
+    "input": { "name": "Alice", "age": "42" },
+    "expect": {
+      "status": "process_error",
+      "stage": "transform",
+      "error_code": "missing_required_field"
+    }
+  },
+  {
+    "name": "optional missing mapping is omitted",
+    "spec": "transforms.yaml",
+    "route": { "method": "POST", "path": "/transforms" },
+    "contract": "optional",
+    "phase": "request",
+    "mode": "runtime",
+    "input": { "name": "Alice", "age": "42" },
+    "expect": {
+      "status": "ok",
+      "payload": { "name": "Alice" }
+    }
+  },
+  {
+    "name": "numbers normalize before handlers",
+    "spec": "numbers.yaml",
+    "route": { "method": "POST", "path": "/numbers" },
+    "contract": "describe",
+    "phase": "request",
+    "mode": "runtime",
+    "input": { "count": 42, "amount": 1.5 },
+    "expect": {
+      "status": "ok",
+      "payload": { "count_type": "int64", "amount_type": "float64" }
+    }
+  },
+  {
+    "name": "large integer normalization fails",
+    "spec": "numbers.yaml",
+    "route": { "method": "POST", "path": "/numbers" },
+    "contract": "passthrough",
+    "phase": "request",
+    "mode": "runtime",
+    "input_raw": "{\"count\":9223372036854775808,\"amount\":1.5}",
+    "expect": {
+      "status": "process_error",
+      "stage": "number_normalize",
+      "error_code": "number_normalization_failed"
     }
   },
   {

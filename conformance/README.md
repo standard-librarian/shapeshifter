@@ -36,6 +36,7 @@ Fields:
 - `phase`: `request`, `response`, or `selection`.
 - `mode`: `runtime` or `preview`.
 - `input`: JSON object to process. Omitted for `selection` cases.
+- `input_raw`: raw JSON string for malformed, empty, or lexical-number cases. Takes precedence over `input`.
 - `expect.status`: `ok`, `process_error`, or `selection_error`.
 - `expect.payload`: expected transformed JSON for successful process cases.
 - `expect.skipped_handlers`: expected skipped handlers in preview mode.
