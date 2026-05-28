@@ -4,7 +4,7 @@
 
 - No unreleased changes yet.
 
-## v0.1.0 Candidate
+## v0.1.0 - 2026-05-28
 
 - Added core ShapeShifter engine and spec loader.
 - Added Echo, Gin, route-scoped Chi, and Fiber adapters.

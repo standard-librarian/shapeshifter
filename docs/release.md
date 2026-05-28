@@ -1,6 +1,6 @@
 # Release And Stability
 
-ShapeShifter is currently pre-1.0. The project should not tag a public release until CI is green from a clean clone and the conformance suite covers the behavior expected from downstream users.
+ShapeShifter is currently pre-1.0. Public releases should be tagged only after CI is green from a clean clone and the conformance suite covers the behavior expected from downstream users.
 
 ## Stability Levels
 
@@ -47,27 +47,27 @@ Also verify:
 - `POST /_shapeshifter/api/process/response` works for the v2 example.
 - `/_shapeshifter/ui/` loads without external CDN or React runtime dependencies.
 
-Recommended first tag:
+Tag command:
 
 ```sh
 git tag v0.1.0
 git push origin v0.1.0
 ```
 
-Do not tag automatically from automation until the release checklist has been run intentionally.
+Do not tag automatically from automation; run the release checklist intentionally.
 
 ## Current v0.1.0 Readiness
 
 Local status as of the release-prep pass:
 
 - Public API names reviewed and documented in `docs/api-surface.md`.
-- Release candidate notes added in `docs/releases/v0.1.0.md`.
+- Release notes added in `docs/releases/v0.1.0.md`.
 - CI workflow exists and runs test, race test, and vet.
 - Latest branch CI was checked with `gh run list` and was green before this release-prep commit.
 - Clean-clone verification passed locally: `go test ./...`, `go test -race ./...`, and `go vet ./...`.
 - Echo example smoke passed locally for sanitized spec, preview request, preview response, UI HTML, and real v2 request.
 - Release-prep branch CI passed after push.
 
-Remaining before tagging:
+Release status:
 
-- Decide explicitly whether to tag `v0.1.0`.
+- `v0.1.0` was approved for tagging after the checklist passed.
