@@ -66,8 +66,8 @@ Local status as of the release-prep pass:
 - Latest branch CI was checked with `gh run list` and was green before this release-prep commit.
 - Clean-clone verification passed locally: `go test ./...`, `go test -race ./...`, and `go vet ./...`.
 - Echo example smoke passed locally for sanitized spec, preview request, preview response, UI HTML, and real v2 request.
+- Release-prep branch CI passed after push.
 
 Remaining before tagging:
 
-- Confirm CI is green for the final release-prep commit.
 - Decide explicitly whether to tag `v0.1.0`.
